@@ -12,6 +12,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"time"
 
 	tp "encryptic/pkg/transport"
 )
@@ -46,7 +47,7 @@ func InitServer(lPort int) {
 			continue
 		}
 
-		manager.sendToPort(rPort, EncryptedMessage, []byte(msg[1]))
+		manager.sendToPort(rPort, EncryptedMessage, []byte(strings.TrimSpace(msg[1])))
 
 	}
 }
@@ -136,7 +137,8 @@ func (manager *ConnectionManager) receive(connection *Connection) {
 				if err != nil {
 					fmt.Println(err)
 				}
-				fmt.Println(string(decrypted))
+				date := time.Unix(msg.TimeStamp, 0)
+				fmt.Printf("%d:%d:%d | %d >> %s\n", date.Hour(), date.Minute(), date.Second(), msg.SenderId, decrypted)
 			default:
 				fmt.Println("Incorrect opCode")
 			}
@@ -175,7 +177,7 @@ func (manager *ConnectionManager) listenOnPort() {
 
 func (manager *ConnectionManager) sendToPort(rPort, opCode int, msg []byte) {
 
-	encMsg := Message{SenderId: int64(manager.lPort), RecieverId: int64(rPort), OpCode: opCode, EncryptedMsg: msg}
+	encMsg := Message{SenderId: int64(manager.lPort), RecieverId: int64(rPort), OpCode: opCode, EncryptedMsg: msg, TimeStamp: time.Now().Unix()}
 	var conn *Connection
 	_, ok := manager.connections[int64(rPort)]
 	if ok {
@@ -184,6 +186,7 @@ func (manager *ConnectionManager) sendToPort(rPort, opCode int, msg []byte) {
 			encMsg.EncryptedMsg = cryptox.EncryptMessageSecretBox(msg, conn.secret)
 		}
 	} else {
+		fmt.Println("This is a new connection. Attempting to dial...")
 		connection, err := tp.DialConnection(rPort)
 		if err != nil {
 			fmt.Println(err)

@@ -26,8 +26,9 @@ var validate *validator.Validate
 type Message struct {
 	SenderId     int64  `json:"senderId" validate:"required,number"`
 	RecieverId   int64  `json:"recieverId" validate:"required,number"`
-	EncryptedMsg []byte `json:"encryptedMsg"`
+	EncryptedMsg []byte `json:"encryptedMsg" validate:"required"`
 	OpCode       int    `json:"opCode" validate:"number,gte=0,lte=3"`
+	TimeStamp    int64  `json:"timeStamp" validate:"required,number"`
 }
 
 type ConnectionManager struct {
