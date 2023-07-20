@@ -1,7 +1,6 @@
 package main
 
 import (
-	"fmt"
 	"os"
 	"strconv"
 
@@ -12,7 +11,7 @@ func main() {
 
 	lPort, err := strconv.Atoi(os.Args[1])
 	if err != nil {
-		fmt.Println(err)
+		panic("Incorrect port value. Please enter appropriate port number (e.g. 5000)")
 	}
 
 	cMan.InitServer(lPort)

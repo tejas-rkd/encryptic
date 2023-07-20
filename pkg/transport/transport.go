@@ -18,9 +18,9 @@ func DialConnection(port int) (net.Conn, error) {
 
 func ListenConnection(port int) (net.Listener, error) {
 	addr := "localhost:" + strconv.Itoa(int(port))
-	listener, error := net.Listen("tcp", addr)
-	if error != nil {
-		fmt.Println(error)
+	listener, err := net.Listen("tcp", addr)
+	if err != nil {
+		fmt.Println(err)
 		return nil, errors.New("unable to listen at:" + strconv.Itoa(port))
 	}
 	return listener, nil

@@ -35,10 +35,15 @@ func InitServer(lPort int) {
 	for {
 		reader := bufio.NewReader(os.Stdin)
 		message, _ := reader.ReadString('\n')
+		if ok := strings.Contains(message, ":"); !ok {
+			fmt.Println("Incorrect format. Please try again")
+			continue
+		}
 		msg := strings.Split(message, ":")
 		rPort, err := strconv.Atoi(msg[0])
 		if err != nil {
-			fmt.Println(err)
+			fmt.Println("Incorrect port value", err)
+			continue
 		}
 
 		manager.sendToPort(rPort, EncryptedMessage, []byte(msg[1]))
@@ -79,31 +84,37 @@ func (manager *ConnectionManager) receive(connection *Connection) {
 			err := json.Unmarshal(message[:length], &msg)
 			if err != nil {
 				fmt.Println(err)
+				continue
+			}
+			err = validateStruct(msg)
+			if err != nil {
+				fmt.Println("malformed message recieved", err)
+				continue
 			}
 
-			if msg.OpCode == Certificate {
+			switch msg.OpCode {
+			case Certificate:
 				key := cryptox.GenerateAESKey()
 				connection, err := tp.DialConnection(int(msg.SenderId))
 				if err != nil {
-					panic(err)
+					fmt.Println(err)
+					continue
 				}
 				conn := &Connection{id: int64(msg.SenderId), secret: key, socket: connection, data: make(chan []byte)}
 				manager.register <- conn
 
-				// error handling based on type of key
 				pub, err := cryptox.ParseRsaPublicKeyFromPem(msg.EncryptedMsg)
 				if err != nil {
-					fmt.Println("error:", err)
+					fmt.Println("failed to decode:", err)
+					continue
 				}
 				encryptedBytes, err := rsa.EncryptOAEP(sha256.New(), rand.Reader, pub, key, nil)
 				if err != nil {
-					panic(err)
+					fmt.Println("failed to encrypt:", err)
+					continue
 				}
 				manager.sendToPort(int(msg.SenderId), SharedSecret, encryptedBytes)
-				continue
-			}
-
-			if msg.OpCode == SharedSecret {
+			case SharedSecret:
 				keyBytes, err := manager.privateKey.Decrypt(nil, msg.EncryptedMsg, &rsa.OAEPOptions{Hash: crypto.SHA256})
 				if err != nil {
 					panic(err)
@@ -112,13 +123,11 @@ func (manager *ConnectionManager) receive(connection *Connection) {
 				if ok {
 					conn.secret = keyBytes
 					manager.connections[msg.SenderId] = conn
+					fmt.Println("New connection is established. Please continue.")
 				} else {
 					fmt.Println("unable to refill the secret")
 				}
-				continue
-			}
-
-			if msg.OpCode == EncryptedMessage {
+			case EncryptedMessage:
 				conn, ok := manager.connections[msg.SenderId]
 				if !ok {
 					panic(err)
@@ -128,6 +137,8 @@ func (manager *ConnectionManager) receive(connection *Connection) {
 					fmt.Println(err)
 				}
 				fmt.Println(string(decrypted))
+			default:
+				fmt.Println("Incorrect opCode")
 			}
 		}
 	}
@@ -147,14 +158,15 @@ func (manager *ConnectionManager) send(connection *Connection) {
 }
 
 func (manager *ConnectionManager) listenOnPort() {
-	listener, error := tp.ListenConnection(int(manager.lPort))
-	if error != nil {
-		fmt.Println(error)
+	listener, err := tp.ListenConnection(int(manager.lPort))
+	if err != nil {
+		panic(err)
 	}
 	for {
 		connection, _ := listener.Accept()
-		if error != nil {
-			fmt.Println(error)
+		if err != nil {
+			fmt.Println("failed to listen:", err)
+			continue
 		}
 		conn := &Connection{socket: connection, data: make(chan []byte)}
 		go manager.receive(conn)
@@ -174,22 +186,23 @@ func (manager *ConnectionManager) sendToPort(rPort, opCode int, msg []byte) {
 	} else {
 		connection, err := tp.DialConnection(rPort)
 		if err != nil {
-			panic(err)
+			fmt.Println(err)
+			return
 		}
 		conn = &Connection{id: int64(rPort), socket: connection, data: make(chan []byte)}
-		// if opCode == Certificate {
 		encMsg.OpCode = Certificate
 		pubJson, err := cryptox.ExportRsaPublicKeyAsPem(&manager.publicKey)
 		if err != nil {
-			fmt.Println(err)
+			fmt.Println("unable to encrypt", err)
+			return
 		}
 		encMsg.EncryptedMsg = pubJson
-		// }
 		manager.register <- conn
 	}
 	data, err := json.Marshal(encMsg)
 	if err != nil {
-		fmt.Println(err)
+		fmt.Println("unable to form message", err)
+		return
 	}
 	conn.data <- data
 
