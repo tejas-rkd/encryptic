@@ -1,4 +1,4 @@
-package main
+package connectionmanager
 
 import (
 	"crypto/rsa"

@@ -17,6 +17,15 @@ func GenerateRsaKeyPair() (*rsa.PrivateKey, *rsa.PublicKey) {
 	return privkey, &privkey.PublicKey
 }
 
+func GenerateAESKey() []byte {
+	key := make([]byte, 32)
+	_, err := rand.Read(key)
+	if err != nil {
+		panic(err)
+	}
+	return key
+}
+
 func ExportRsaPrivateKeyAsPem(privkey *rsa.PrivateKey) []byte {
 	privkey_bytes := x509.MarshalPKCS1PrivateKey(privkey)
 	privkey_pem := pem.EncodeToMemory(
